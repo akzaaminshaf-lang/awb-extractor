@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AWB Intelligence — Air Waybill Extractor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --ink:#0d0d0d;
+  --paper:#f5f0e8;
+  --cream:#ede8dc;
+  --tan:#d4c9b0;
+  --rust:#c8401a;
+  --rust-light:#e8501a;
+  --steel:#2a3a4a;
+  --steel-light:#3d5060;
+  --gold:#c8941a;
+  --white:#ffffff;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans',sans-serif;
+  --display:'Bebas Neue',sans-serif;
+}
+
+html{scroll-behavior:smooth}
+
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  min-height:100vh;
+  position:relative;
+}
+
+/* Texture overlay */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23f5f0e8'/%3E%3Crect width='1' height='1' x='0' y='0' fill='%23e8e0d0' opacity='0.4'/%3E%3Crect width='1' height='1' x='2' y='2' fill='%23e8e0d0' opacity='0.4'/%3E%3C/svg%3E");
+  pointer-events:none;
+  z-index:0;
+  opacity:0.6;
+}
+
+.app{position:relative;z-index:1;max-width:1300px;margin:0 auto;padding:0 32px 80px}
+
+/* ── HEADER ── */
+.header{
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:end;
+  padding:48px 0 32px;
+  border-bottom:3px solid var(--ink);
+  margin-bottom:48px;
+  gap:24px;
+}
+
+.header-left{}
+
+.eyebrow{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:4px;
+  text-transform:uppercase;
+  color:var(--rust);
+  margin-bottom:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.eyebrow::before{content:'';display:block;width:24px;height:2px;background:var(--rust)}
+
+h1{
+  font-family:var(--display);
+  font-size:clamp(52px,8vw,96px);
+  line-height:0.9;
+  letter-spacing:2px;
+  color:var(--ink);
+}
+
+h1 span{color:var(--rust)}
+
+.header-desc{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--steel-light);
+  margin-top:16px;
+  line-height:1.8;
+  max-width:480px;
+}
+
+.header-right{text-align:right}
+
+.version-tag{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:2px;
+  color:var(--tan);
+  border:1px solid var(--tan);
+  padding:4px 10px;
+  display:inline-block;
+  margin-bottom:8px;
+}
+
+.carrier-list{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:1px;
+  color:var(--steel-light);
+  line-height:2;
+  text-align:right;
+}
+
+/* ── STEP LABELS ── */
+.step-label{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:var(--rust);
+  margin-bottom:10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.step-num{
+  width:20px;height:20px;
+  background:var(--rust);
+  color:var(--white);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;
+  font-weight:600;
+  flex-shrink:0;
+}
+
+/* ── API KEY PANEL ── */
+.panel{
+  background:var(--white);
+  border:2px solid var(--ink);
+  border-radius:2px;
+  padding:24px 28px;
+  margin-bottom:20px;
+  position:relative;
+}
+
+.panel-title{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  color:var(--ink);
+  font-weight:600;
+  margin-bottom:14px;
+}
+
+.api-row{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.api-input{
+  flex:1;
+  min-width:260px;
+  background:var(--cream);
+  border:1.5px solid var(--tan);
+  border-radius:2px;
+  padding:11px 14px;
+  font-family:var(--mono);
+  font-size:13px;
+  color:var(--ink);
+  outline:none;
+  transition:border-color 0.2s;
+}
+
+.api-input:focus{border-color:var(--rust)}
+
+.api-note{
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--steel-light);
+  line-height:1.6;
+}
+
+.api-link{color:var(--rust);text-decoration:none}
+.api-link:hover{text-decoration:underline}
+
+/* ── UPLOAD ZONE ── */
+.upload-zone{
+  background:var(--white);
+  border:2.5px dashed var(--tan);
+  border-radius:2px;
+  padding:64px 32px;
+  text-align:center;
+  cursor:pointer;
+  transition:all 0.25s;
+  margin-bottom:20px;
+  position:relative;
+  overflow:hidden;
+}
+
+.upload-zone.drag-over{
+  border-color:var(--rust);
+  background:rgba(200,64,26,0.03);
+}
+
+.upload-zone:hover{border-color:var(--steel)}
+
+.upload-plane{
+  font-size:56px;
+  display:block;
+  margin-bottom:20px;
+  transition:transform 0.3s;
+}
+
+.upload-zone:hover .upload-plane{transform:translateX(8px) rotate(-5deg)}
+
+.upload-title{
+  font-family:var(--display);
+  font-size:32px;
+  letter-spacing:2px;
+  color:var(--ink);
+  margin-bottom:8px;
+}
+
+.upload-sub{
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--steel-light);
+  margin-bottom:24px;
+  line-height:1.6;
+}
+
+.upload-cta{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:12px 28px;
+  background:var(--ink);
+  color:var(--paper);
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  border:none;
+  border-radius:2px;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+
+.upload-cta:hover{background:var(--rust)}
+
+#fileInput{display:none}
+
+/* ── FILE LIST ── */
+.file-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+
+.file-item{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:12px 16px;
+  background:var(--white);
+  border:1.5px solid var(--tan);
+  border-radius:2px;
+  animation:fadeSlide 0.25s ease;
+}
+
+@keyframes fadeSlide{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+.fi-icon{font-size:18px;flex-shrink:0}
+.fi-name{flex:1;font-family:var(--mono);font-size:12px;color:var(--ink);font-weight:500}
+.fi-size{font-family:var(--mono);font-size:10px;color:var(--steel-light)}
+.fi-pages{font-family:var(--mono);font-size:10px;color:var(--gold)}
+
+.fi-status{
+  font-family:var(--mono);
+  font-size:9px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  padding:3px 10px;
+  border-radius:1px;
+  flex-shrink:0;
+}
+.fi-status.pending{background:var(--cream);color:var(--steel-light);border:1px solid var(--tan)}
+.fi-status.reading{background:#fff8e6;color:var(--gold);border:1px solid var(--gold)}
+.fi-status.processing{background:#e6f0ff;color:#2060c0;border:1px solid #2060c0}
+.fi-status.done{background:#e6f7f0;color:#1a7a50;border:1px solid #1a7a50}
+.fi-status.error{background:#fde8e4;color:var(--rust);border:1px solid var(--rust)}
+
+.fi-remove{
+  background:none;border:none;color:var(--tan);
+  cursor:pointer;font-size:16px;padding:2px 6px;
+  border-radius:2px;transition:color 0.2s;flex-shrink:0;
+}
+.fi-remove:hover{color:var(--rust)}
+
+/* ── ACTIONS ── */
+.actions-row{
+  display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap;
+}
+
+.btn-extract{
+  flex:1;min-width:200px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:16px 32px;
+  background:var(--rust);
+  color:var(--white);
+  font-family:var(--display);
+  font-size:22px;
+  letter-spacing:2px;
+  border:none;border-radius:2px;cursor:pointer;
+  transition:all 0.2s;
+  position:relative;overflow:hidden;
+}
+
+.btn-extract::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,0.1) 50%);
+}
+
+.btn-extract:hover:not(:disabled){background:var(--rust-light);transform:translateY(-2px);box-shadow:0 6px 20px rgba(200,64,26,0.3)}
+.btn-extract:disabled{opacity:0.35;cursor:not-allowed}
+
+.btn-outline{
+  padding:16px 24px;
+  background:transparent;
+  border:2px solid var(--ink);
+  color:var(--ink);
+  font-family:var(--mono);
+  font-size:12px;letter-spacing:2px;text-transform:uppercase;
+  border-radius:2px;cursor:pointer;transition:all 0.2s;
+  display:flex;align-items:center;gap:8px;
+}
+.btn-outline:hover:not(:disabled){background:var(--ink);color:var(--paper)}
+.btn-outline:disabled{opacity:0.3;cursor:not-allowed}
+
+/* ── PROGRESS ── */
+.progress-wrap{margin-bottom:32px;display:none}
+.progress-wrap.show{display:block}
+.progress-label{
+  font-family:var(--mono);font-size:10px;letter-spacing:2px;
+  color:var(--steel-light);margin-bottom:8px;
+  display:flex;justify-content:space-between;
+}
+.progress-track{height:4px;background:var(--tan);border-radius:0}
+.progress-bar-inner{
+  height:100%;background:var(--rust);
+  border-radius:0;transition:width 0.4s ease;
+  position:relative;
+}
+.progress-bar-inner::after{
+  content:'';position:absolute;right:0;top:50%;transform:translateY(-50%);
+  width:8px;height:8px;background:var(--rust);border-radius:50%;
+}
+
+/* ── SUMMARY CARDS ── */
+.summary-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:2px;margin-bottom:2px;
+}
+
+.summary-card{
+  background:var(--ink);
+  color:var(--paper);
+  padding:20px 24px;
+  border-radius:1px;
+}
+
+.sc-label{
+  font-family:var(--mono);font-size:9px;letter-spacing:2px;
+  text-transform:uppercase;color:var(--tan);margin-bottom:8px;
+}
+
+.sc-value{
+  font-family:var(--display);font-size:36px;
+  letter-spacing:1px;color:var(--white);line-height:1;
+  margin-bottom:4px;
+}
+
+.sc-sub{font-family:var(--mono);font-size:10px;color:var(--steel-light)}
+.sc-rust{background:var(--rust)}
+.sc-rust .sc-label{color:rgba(255,255,255,0.6)}
+.sc-rust .sc-value{color:var(--white)}
+.sc-rust .sc-sub{color:rgba(255,255,255,0.5)}
+
+/* ── RESULTS ── */
+.results-section{display:none;margin-top:2px}
+.results-section.show{display:block}
+
+.results-toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 0;gap:16px;flex-wrap:wrap;
+  border-bottom:2px solid var(--ink);
+  margin-bottom:0;
+}
+
+.results-title-area{}
+.results-title{
+  font-family:var(--display);font-size:28px;letter-spacing:1px;color:var(--ink);
+}
+.results-meta{font-family:var(--mono);font-size:10px;color:var(--steel-light);margin-top:2px}
+
+.toolbar-btns{display:flex;gap:8px;flex-wrap:wrap}
+
+.tool-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 16px;
+  background:var(--white);
+  border:1.5px solid var(--tan);
+  border-radius:2px;
+  font-family:var(--mono);font-size:11px;letter-spacing:1px;
+  color:var(--ink);cursor:pointer;transition:all 0.15s;
+}
+.tool-btn:hover{border-color:var(--rust);color:var(--rust)}
+.tool-btn.primary-tool{background:var(--rust);border-color:var(--rust);color:var(--white)}
+.tool-btn.primary-tool:hover{background:var(--rust-light)}
+
+/* ── TABLE ── */
+.table-container{
+  overflow-x:auto;
+  border-left:2px solid var(--ink);
+  border-right:2px solid var(--ink);
+  border-bottom:2px solid var(--ink);
+}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+
+thead tr{background:var(--steel);border-bottom:2px solid var(--ink)}
+
+th{
+  padding:10px 14px;
+  text-align:left;
+  font-family:var(--mono);font-size:9px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--paper);
+  white-space:nowrap;font-weight:500;
+  border-right:1px solid rgba(255,255,255,0.08);
+}
+th:last-child{border-right:none}
+th.mawb-col{color:#ffcc88}
+th.num-col{text-align:right}
+
+tbody tr{border-bottom:1px solid var(--cream);transition:background 0.1s}
+tbody tr:hover{background:rgba(200,64,26,0.04)}
+tbody tr:last-child{border-bottom:none}
+
+td{
+  padding:10px 14px;
+  color:var(--ink);
+  font-family:var(--mono);font-size:12px;
+  white-space:nowrap;
+  border-right:1px solid var(--cream);
+  vertical-align:middle;
+}
+td:last-child{border-right:none}
+
+.td-mawb{
+  font-weight:600;color:var(--rust);font-size:12px;
+}
+
+.td-num{text-align:right;font-variant-numeric:tabular-nums}
+.td-na{color:var(--tan)}
+
+.td-carrier{
+  background:var(--cream);
+  font-size:10px;letter-spacing:1px;
+}
+
+/* ── LOG ── */
+.log-panel{
+  margin-top:20px;
+  background:var(--ink);
+  border-radius:2px;
+  padding:20px;
+  display:none;
+}
+.log-panel.show{display:block}
+.log-header-label{
+  font-family:var(--mono);font-size:9px;letter-spacing:3px;
+  text-transform:uppercase;color:var(--tan);margin-bottom:12px;
+}
+.log-body{
+  max-height:140px;overflow-y:auto;
+  font-family:var(--mono);font-size:11px;line-height:2;
+}
+.log-line{color:#6b8a7a}
+.log-line.info{color:#7ab0e0}
+.log-line.ok{color:#6acca0}
+.log-line.warn{color:#e0c060}
+.log-line.err{color:#e07060}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:28px;right:28px;
+  padding:12px 22px;border-radius:2px;
+  font-family:var(--mono);font-size:12px;
+  z-index:9999;animation:toastUp 0.3s ease;
+  max-width:340px;line-height:1.4;
+}
+.toast.ok{background:var(--ink);color:var(--paper);border-left:4px solid #6acca0}
+.toast.err{background:var(--ink);color:var(--paper);border-left:4px solid var(--rust)}
+@keyframes toastUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── FOOTER ── */
+.footer{
+  margin-top:64px;padding:24px 0;border-top:2px solid var(--ink);
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+}
+.footer-text{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--steel-light)}
+.footer-text a{color:var(--rust);text-decoration:none}
+
+/* ── EMPTY TABLE STATE ── */
+.empty-table{
+  text-align:center;padding:60px 20px;
+  background:var(--white);border:2px solid var(--tan);border-top:none;
+}
+.empty-table-icon{font-size:36px;margin-bottom:12px}
+.empty-table-text{font-family:var(--mono);font-size:12px;color:var(--steel-light)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  .app{padding:0 16px 60px}
+  .header{grid-template-columns:1fr}
+  .header-right{display:none}
+  h1{font-size:52px}
+  .summary-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <div class="eyebrow">Air Cargo Intelligence System</div>
+      <h1>AWB<br><span>EXTRACT</span>OR</h1>
+      <p class="header-desc">
+        Upload Air Waybill PDFs → AI reads every charge code,<br>
+        weight, rate & fee → Export clean structured data.
+      </p>
+    </div>
+    <div class="header-right">
+      <div class="version-tag">v2.0 — CLAUDE AI</div>
+      <div class="carrier-list">
+        CATHAY PACIFIC · CX<br>
+        SINGAPORE AIRLINES · SQ<br>
+        AIR ARABIA · G9<br>
+        BATIK AIR · 8D<br>
+        + ANY CARRIER FORMAT
+      </div>
+    </div>
+  </header>
+
+  <!-- STEP 1: API KEY -->
+  <div class="step-label"><div class="step-num">1</div> Anthropic API Key</div>
+  <div class="panel" style="margin-bottom:28px">
+    <div class="api-row">
+      <input type="password" class="api-input" id="apiKey"
+        placeholder="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxx"
+        autocomplete="off"/>
+      <div class="api-note">
+        Get your key at <a class="api-link" href="https://console.anthropic.com" target="_blank">console.anthropic.com</a><br>
+        Never stored — used only for this session in your browser.
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: UPLOAD -->
+  <div class="step-label"><div class="step-num">2</div> Upload AWB PDFs</div>
+  <div class="upload-zone" id="uploadZone">
+    <span class="upload-plane">✈</span>
+    <div class="upload-title">DROP PDF FILES HERE</div>
+    <div class="upload-sub">
+      Single or multi-page AWB PDFs · Multiple files at once<br>
+      Cathay Pacific, Singapore Airlines, Air Arabia, Batik Air & more
+    </div>
+    <button class="upload-cta" onclick="document.getElementById('fileInput').click();event.stopPropagation()">
+      ↑ BROWSE FILES
+    </button>
+    <input type="file" id="fileInput" accept=".pdf" multiple/>
+  </div>
+
+  <!-- FILE LIST -->
+  <div class="file-list" id="fileList"></div>
+
+  <!-- STEP 3: EXTRACT -->
+  <div class="step-label" id="step3Label" style="display:none">
+    <div class="step-num">3</div> Extract &amp; Export
+  </div>
+
+  <div class="actions-row" id="actionsRow" style="display:none">
+    <button class="btn-extract" id="extractBtn" onclick="runExtraction()">
+      ⚡ EXTRACT DATA
+    </button>
+    <button class="btn-outline" id="clearBtn" onclick="clearAll()">
+      ✕ CLEAR ALL
+    </button>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label">
+      <span id="progressLabel">Processing…</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-bar-inner" id="progressBar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-row" id="summaryRow" style="display:none"></div>
+
+  <!-- RESULTS TABLE -->
+  <div class="results-section" id="resultsSection">
+    <div class="results-toolbar">
+      <div class="results-title-area">
+        <div class="results-title">EXTRACTED DATA</div>
+        <div class="results-meta" id="resultsMeta"></div>
+      </div>
+      <div class="toolbar-btns">
+        <button class="tool-btn primary-tool" onclick="exportCSV()">↓ CSV</button>
+        <button class="tool-btn" onclick="exportJSON()">↓ JSON</button>
+        <button class="tool-btn" onclick="copyMarkdown()">⎘ COPY TABLE</button>
+      </div>
+    </div>
+    <div class="table-container">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="log-panel" id="logPanel">
+    <div class="log-header-label">▸ Processing Log</div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-text">
+      AWB EXTRACTOR · Powered by <a href="https://anthropic.com" target="_blank">Claude Sonnet</a> · All processing in-browser · No data stored
+    </div>
+    <div class="footer-text">
+      <a href="https://github.com" target="_blank">★ Star on GitHub</a>
+    </div>
+  </footer>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let files = [];      // {file, id, status}
+let results = [];    // array of row objects
+let allCols = [];    // ordered column names
+
+// Column ordering priority
+const COL_PRIORITY = [
+  'MAWB Number','Carrier','Flight','Date','Flight/Date',
+  'Origin','Destination','Pieces','Gross Weight (KG)','Chargeable Weight (KG)',
+  'Rate','Nature of Goods',
+  'Weight Charge (Prepaid)','Currency','Exchange Rate',
+  'AWC','AWA','FEC','MZC','ELI','CGC','XBC','EAC','SCC','MYC',
+  'Other Charges Due Carrier','Total Prepaid','Total Other Charges',
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRAG & DROP / FILE INPUT
+// ═══════════════════════════════════════════════════════════════════════════
+const zone = document.getElementById('uploadZone');
+const input = document.getElementById('fileInput');
+
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag-over');
+  addFiles([...e.dataTransfer.files].filter(f => f.type === 'application/pdf'));
+});
+zone.addEventListener('click', e => {
+  if (!e.target.classList.contains('upload-cta') && !e.target.closest('.upload-cta')) input.click();
+});
+input.addEventListener('change', () => { addFiles([...input.files]); input.value=''; });
+
+function addFiles(newFiles) {
+  newFiles.forEach(f => {
+    if (!files.find(x => x.file.name === f.name && x.file.size === f.size)) {
+      files.push({ file: f, id: crypto.randomUUID(), status: 'pending' });
+    }
+  });
+  renderFiles();
+}
+
+function renderFiles() {
+  const list = document.getElementById('fileList');
+  list.innerHTML = '';
+  files.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.id = 'fi-' + item.id;
+    div.innerHTML = `
+      <span class="fi-icon">${statusIcon(item.status)}</span>
+      <div style="flex:1;min-width:0">
+        <div class="fi-name" style="overflow:hidden;text-overflow:ellipsis">${item.file.name}</div>
+        <div class="fi-size">${fmtSize(item.file.size)}</div>
+      </div>
+      <span class="fi-status ${item.status}" id="fis-${item.id}">${item.status.toUpperCase()}</span>
+      ${item.status === 'pending' ? `<button class="fi-remove" onclick="removeFile('${item.id}')">✕</button>` : ''}
+    `;
+    list.appendChild(div);
+  });
+  // Show/hide step 3
+  const hasPending = files.some(f => f.status === 'pending');
+  document.getElementById('step3Label').style.display = files.length ? 'flex' : 'none';
+  document.getElementById('actionsRow').style.display = files.length ? 'flex' : 'none';
+  document.getElementById('extractBtn').disabled = !hasPending;
+  document.getElementById('clearBtn').disabled = files.length === 0;
+}
+
+function removeFile(id) {
+  files = files.filter(f => f.id !== id);
+  renderFiles();
+  if (!files.length) clearResults();
+}
+
+function clearAll() {
+  files = []; results = []; allCols = [];
+  renderFiles();
+  clearResults();
+  document.getElementById('logPanel').classList.remove('show');
+  document.getElementById('logBody').innerHTML = '';
+  document.getElementById('progressWrap').classList.remove('show');
+}
+
+function clearResults() {
+  document.getElementById('summaryRow').style.display = 'none';
+  document.getElementById('resultsSection').classList.remove('show');
+}
+
+function statusIcon(s) {
+  return {pending:'📄',reading:'📖',processing:'⚙️',done:'✅',error:'❌'}[s] || '📄';
+}
+
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+function setStatus(id, s) {
+  const item = files.find(f => f.id === id);
+  if (item) item.status = s;
+  const el = document.getElementById('fis-' + id);
+  if (el) { el.className = 'fi-status ' + s; el.textContent = s.toUpperCase(); }
+  const icon = document.querySelector(`#fi-${id} .fi-icon`);
+  if (icon) icon.textContent = statusIcon(s);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXTRACTION
+// ═══════════════════════════════════════════════════════════════════════════
+async function runExtraction() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { toast('Please enter your Anthropic API key', 'err'); return; }
+
+  const pending = files.filter(f => f.status === 'pending');
+  if (!pending.length) return;
+
+  document.getElementById('extractBtn').disabled = true;
+  document.getElementById('progressWrap').classList.add('show');
+  document.getElementById('logPanel').classList.add('show');
+
+  let done = 0;
+
+  for (const item of pending) {
+    setStatus(item.id, 'reading');
+    log(`Reading: ${item.file.name}`, 'info');
+
+    try {
+      const b64 = await toBase64(item.file);
+      setStatus(item.id, 'processing');
+      log(`Sending to Claude AI: ${item.file.name}`, 'info');
+
+      const rows = await callClaude(key, b64);
+
+      if (rows && rows.length) {
+        rows.forEach(r => results.push(r));
+        setStatus(item.id, 'done');
+        log(`✓ ${item.file.name} → ${rows.length} AWB(s) found`, 'ok');
+      } else {
+        setStatus(item.id, 'done');
+        log(`⚠ ${item.file.name} → No AWBs detected`, 'warn');
+      }
+    } catch (err) {
+      setStatus(item.id, 'error');
+      log(`✗ ${item.file.name} → ${err.message}`, 'err');
+    }
+
+    done++;
+    const pct = Math.round((done / pending.length) * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressPct').textContent = pct + '%';
+    document.getElementById('progressLabel').textContent =
+      done < pending.length ? `Processing file ${done+1} of ${pending.length}…` : 'Complete!';
+  }
+
+  renderFiles();
+  if (results.length) {
+    buildColumns();
+    renderSummary();
+    renderTable();
+    toast(`Extracted ${results.length} AWB(s) successfully`, 'ok');
+  } else {
+    toast('No AWB data could be extracted', 'err');
+  }
+
+  document.getElementById('extractBtn').disabled = false;
+  log('─── All done ───', 'ok');
+}
+
+async function callClaude(apiKey, base64pdf) {
+  const prompt = `You are an expert Air Waybill (AWB) data extractor for logistics and freight operations.
+
+Analyze this Air Waybill PDF and extract ALL unique AWBs. Return ONLY a valid JSON array — no markdown, no explanation.
+
+For each unique AWB number found, return ONE object with these fields (null if not present):
+{
+  "MAWB Number": "full AWB number e.g. 160-84492715",
+  "Carrier": "airline full name",
+  "Flight/Date": "e.g. CX610/24MAR",
+  "Origin": "IATA airport code",
+  "Destination": "IATA airport code",
+  "Pieces": number,
+  "Gross Weight (KG)": number,
+  "Chargeable Weight (KG)": number,
+  "Rate": number,
+  "Nature of Goods": "description",
+  "Weight Charge (Prepaid)": number,
+  "Currency": "LKR or USD etc",
+  "Exchange Rate": "e.g. 1 USD = 313.16 LKR",
+  "Other Charges Due Carrier": number,
+  "Total Prepaid": number
+}
+
+IMPORTANT — also extract EVERY individual charge code and its amount as separate fields.
+Common charge codes you may encounter (add ALL that appear in the document):
+AWC, AWA, FEC, MZC, ELI, CGC, XBC, EAC, SCC, MYC, SCC
+
+For each charge code found, add it as a key with its numeric value. Example:
+"AWC": 626.32,
+"FEC": 1099.19,
+"SCC": 9364.68,
+"MYC": 121725.89
+
+Rules:
+- One object per UNIQUE MAWB number only (ignore duplicate copies of same AWB)
+- All numeric values should be plain numbers, no commas or currency symbols
+- If exchange rate is present extract it as a string
+- Return [] if no AWBs found
+
+Return ONLY the JSON array, nothing else.`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64pdf } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error(e.error?.message || `HTTP ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const text = data.content.map(b => b.text || '').join('').trim();
+  const clean = text.replace(/^```(?:json)?\n?/,'').replace(/\n?```$/,'').trim();
+
+  try { return JSON.parse(clean); }
+  catch {
+    const m = clean.match(/\[[\s\S]*\]/);
+    if (m) return JSON.parse(m[0]);
+    throw new Error('Could not parse JSON from Claude response');
+  }
+}
+
+function toBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER RESULTS
+// ═══════════════════════════════════════════════════════════════════════════
+function buildColumns() {
+  const found = new Set();
+  results.forEach(r => Object.keys(r).forEach(k => found.add(k)));
+  const priority = COL_PRIORITY.filter(c => found.has(c));
+  const extra = [...found].filter(c => !COL_PRIORITY.includes(c)).sort();
+  allCols = [...priority, ...extra];
+}
+
+function renderSummary() {
+  const row = document.getElementById('summaryRow');
+  row.style.display = 'grid';
+
+  const awbs = results.length;
+  const pieces = results.reduce((s,r) => s + (num(r['Pieces'])||0), 0);
+  const gw = results.reduce((s,r) => s + (num(r['Gross Weight (KG)'])||0), 0);
+  const cw = results.reduce((s,r) => s + (num(r['Chargeable Weight (KG)'])||0), 0);
+  const totalPrepaid = results.reduce((s,r) => s + (num(r['Total Prepaid'])||0), 0);
+  const currencies = [...new Set(results.map(r=>r['Currency']).filter(Boolean))];
+
+  row.innerHTML = `
+    <div class="summary-card sc-rust">
+      <div class="sc-label">AWBs Extracted</div>
+      <div class="sc-value">${awbs}</div>
+      <div class="sc-sub">unique waybills</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Total Pieces</div>
+      <div class="sc-value">${pieces.toLocaleString()}</div>
+      <div class="sc-sub">across all shipments</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Gross Weight</div>
+      <div class="sc-value">${gw.toLocaleString(undefined,{maximumFractionDigits:1})}</div>
+      <div class="sc-sub">kilograms</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Chargeable Wt</div>
+      <div class="sc-value">${cw.toLocaleString(undefined,{maximumFractionDigits:1})}</div>
+      <div class="sc-sub">kilograms</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Total Prepaid</div>
+      <div class="sc-value" style="font-size:28px">${currencies[0]||''} ${totalPrepaid.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
+      <div class="sc-sub">${currencies.join(' · ')||'—'}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Files Done</div>
+      <div class="sc-value">${files.filter(f=>f.status==='done').length}<span style="font-size:16px;color:#6b8a7a">/${files.length}</span></div>
+      <div class="sc-sub">PDFs processed</div>
+    </div>
+  `;
+}
+
+function renderTable() {
+  // Head
+  document.getElementById('tableHead').innerHTML = `<tr>
+    ${allCols.map(c => {
+      const isNum = isNumericCol(c);
+      const isMawb = c === 'MAWB Number';
+      const isCarrier = c === 'Carrier';
+      return `<th class="${isMawb?'mawb-col':''} ${isNum?'num-col':''}">${c}</th>`;
+    }).join('')}
+  </tr>`;
+
+  // Body
+  document.getElementById('tableBody').innerHTML = results.map(r => `
+    <tr>
+      ${allCols.map(c => {
+        const val = r[c];
+        const isNull = val === null || val === undefined || val === '';
+        const isNum = isNumericCol(c) && !isNull && !isNaN(val);
+        const isMawb = c === 'MAWB Number';
+        const isCarrier = c === 'Carrier';
+        let display = isNull ? '<span class="td-na">—</span>' :
+          (isNum ? fmtNum(val) : escHtml(String(val)));
+        return `<td class="${isMawb?'td-mawb':''} ${isNum?'td-num':''} ${isCarrier?'td-carrier':''}">${display}</td>`;
+      }).join('')}
+    </tr>
+  `).join('');
+
+  document.getElementById('resultsSection').classList.add('show');
+  document.getElementById('resultsMeta').textContent =
+    `${results.length} AWB(s) · ${allCols.length} columns · ${files.filter(f=>f.status==='done').length} file(s)`;
+}
+
+function isNumericCol(c) {
+  const numCols = [
+    'Pieces','Gross Weight (KG)','Chargeable Weight (KG)','Rate',
+    'Weight Charge (Prepaid)','Other Charges Due Carrier','Total Prepaid',
+    'AWC','AWA','FEC','MZC','ELI','CGC','XBC','EAC','SCC','MYC'
+  ];
+  return numCols.includes(c);
+}
+
+function num(v) { return typeof v === 'number' ? v : parseFloat(String(v||'').replace(/,/g,'')); }
+function fmtNum(v) { const n = num(v); return isNaN(n) ? v : n.toLocaleString(undefined,{maximumFractionDigits:2}); }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════════
+function exportCSV() {
+  if (!results.length) { toast('No data to export','err'); return; }
+  const esc = v => `"${String(v??'').replace(/"/g,'""')}"`;
+  const lines = [
+    allCols.map(esc).join(','),
+    ...results.map(r => allCols.map(c => esc(r[c]??'')).join(','))
+  ];
+  download(lines.join('\r\n'), `awb_data_${yyyymmdd()}.csv`, 'text/csv');
+  toast('CSV downloaded!','ok');
+}
+
+function exportJSON() {
+  if (!results.length) { toast('No data to export','err'); return; }
+  download(JSON.stringify(results, null, 2), `awb_data_${yyyymmdd()}.json`, 'application/json');
+  toast('JSON downloaded!','ok');
+}
+
+function copyMarkdown() {
+  if (!results.length) { toast('No data to copy','err'); return; }
+  const sep = allCols.map(() => '---').join(' | ');
+  const hdr = allCols.join(' | ');
+  const rows = results.map(r => allCols.map(c => String(r[c]??'—')).join(' | '));
+  const md = ['| ' + hdr + ' |', '| ' + sep + ' |', ...rows.map(r => '| ' + r + ' |')].join('\n');
+  navigator.clipboard.writeText(md).then(() => toast('Table copied as Markdown!','ok'));
+}
+
+function download(content, filename, mime) {
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([content], {type: mime})),
+    download: filename
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+function yyyymmdd() {
+  return new Date().toISOString().slice(0,10).replace(/-/g,'');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOG & TOAST
+// ═══════════════════════════════════════════════════════════════════════════
+function log(msg, type='') {
+  const box = document.getElementById('logBody');
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+let toastTimer;
+function toast(msg, type='ok') {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const t = Object.assign(document.createElement('div'), {className:`toast ${type}`, textContent:msg});
+  document.body.appendChild(t);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.remove(), 4000);
+}
+</script>
+</body>
+</html>
